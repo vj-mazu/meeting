@@ -305,6 +305,14 @@ const getCurrentCycleCookingHistory = (entry: SampleEntry, history: any[]) => {
   const { after, hasSplit } = splitHistoryByResampleStart(entry, history);
   return hasSplit ? after : [];
 };
+const getLatestMatchingHistoryItem = (history: any[], matcher: (item: any) => boolean) => {
+  if (!Array.isArray(history) || history.length === 0) return null;
+  for (let idx = history.length - 1; idx >= 0; idx -= 1) {
+    const item = history[idx];
+    if (matcher(item)) return item;
+  }
+  return null;
+};
 
 const getSamplingLabel = (attemptNo: number) => {
   if (attemptNo <= 1) return 'First Sampling';
@@ -1033,8 +1041,8 @@ const CookingReport: React.FC<CookingReportProps> = ({ entryType, excludeEntryTy
 
   const renderCookingDoneByWithDate = (entry: any, fallback: string) => {
     const cr = entry.cookingReport;
-    const relevantHistory = getCurrentCycleCookingHistory(entry, Array.isArray(cr?.history) ? cr.history : []);
-    let cookings = relevantHistory.filter((h: any) => h.cookingDoneBy && !h.status);
+    const history = Array.isArray(cr?.history) ? cr.history : [];
+    let cookings = history.filter((h: any) => h.cookingDoneBy && !h.status);
 
     if (cookings.length === 0 && cr?.cookingDoneBy) {
       cookings = [{ cookingDoneBy: cr.cookingDoneBy, date: null }];
@@ -1062,8 +1070,16 @@ const CookingReport: React.FC<CookingReportProps> = ({ entryType, excludeEntryTy
 
   const renderApprovedByWithDate = (entry: any) => {
     const cr = entry.cookingReport || {};
-    const relevantHistory = getCurrentCycleCookingHistory(entry, Array.isArray(cr?.history) ? cr.history : []);
+    const history = Array.isArray(cr?.history) ? cr.history : [];
+    const relevantHistory = getCurrentCycleCookingHistory(entry, history);
     let approvals = relevantHistory.filter((h: any) => h.approvedBy && h.status);
+
+    if (approvals.length === 0) {
+      const latestExistingApproval = getLatestMatchingHistoryItem(history, (item: any) => !!item?.approvedBy && !!item?.status);
+      if (latestExistingApproval) {
+        approvals = [latestExistingApproval];
+      }
+    }
 
     if (approvals.length === 0 && cr?.cookingApprovedBy) {
       approvals = [{ approvedBy: cr.cookingApprovedBy, status: cr?.status, date: null, remarks: cr?.remarks }];
